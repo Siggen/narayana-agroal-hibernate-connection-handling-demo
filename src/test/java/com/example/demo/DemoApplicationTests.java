@@ -1,38 +1,27 @@
 package com.example.demo;
 
-import liquibase.integration.spring.SpringLiquibase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-
-import java.sql.SQLException;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@Import(EmbeddedPostgres.class)
 @SpringBootTest
+@Testcontainers
 class DemoApplicationTests {
 
-    @TestConfiguration
-    static class Configuration {
-
-        @Bean
-        public SpringLiquibase liquibase() {
-            var liquibase = new SpringLiquibase();
-            liquibase.setShouldRun(false);    // already ran by EmbeddedPostgres.createDatabaseProvider()
-            return liquibase;
-        }
-    }
+    @Container
+    static PostgreSQLContainer postgres = new PostgreSQLContainer(System.getProperty("postgres.testcontainer.image", "postgres:17-alpine"));
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -41,16 +30,10 @@ class DemoApplicationTests {
     private UserRepository userRepository;
 
     @DynamicPropertySource
-    static void registerPgProperties(DynamicPropertyRegistry registry) throws SQLException {
-
-        // create embedded database
-        var provider = EmbeddedPostgres.createDatabaseProvider();
-        var connectionInfo = provider.createNewDatabase();
-        var url = EmbeddedPostgres.getJdbcUri(connectionInfo);
-
-        registry.add("spring.datasource.url", () -> url);
-        registry.add("spring.datasource.username", connectionInfo::getUser);
-        registry.add("spring.datasource.password", () -> "");
+    static void registerPgProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", () -> postgres.getJdbcUrl());
+        registry.add("spring.datasource.username", () -> postgres.getUsername());
+        registry.add("spring.datasource.password", () -> postgres.getPassword());
     }
 
     /**
